@@ -10,6 +10,7 @@ import io
 import json
 import requests
 from typing import List, Optional
+from PIL import Image
 
 # Create main app
 app = FastAPI()
@@ -173,12 +174,11 @@ Output: Return ONLY the final generated image. Do not return text."""
                     model="gemini-2.5-flash-image-preview",
                     contents={"parts": [{"text": detailed_prompt}]},
                     config=types.GenerateContentConfig(
-                        response_modalities=["IMAGE"]
+                        response_modalities=["TEXT", "IMAGE"]
                     )
                 )
                 print(f"Gemini API call completed successfully")
                 
-                image_data = process_gemini_image_response(response)
                 
             except Exception as e:
                 print(f"Error calling Gemini API: {str(e)}")
@@ -232,60 +232,16 @@ async def edit_image(
         print(f"  Model: {model}")
         print(f"  Image URLs: {repr(image_urls)}")
         print(f"  Image file: {image_file.filename if image_file else 'None'}")
-        
+
         # Validate that we have at least one image source
         if not image_urls.strip() and (not image_file or not image_file.filename):
-            return {
-                "error": "No image provided. Please upload an image file or provide an image URL."
-            }
-        
-        # Note: Image editing with Imagen API is more complex and may not support the same
-        # multimodal approach as Gemini. For now, we'll use Gemini for all image editing
-        # regardless of the selected model, but we can expand this later.
-        
+            return {"error": "No image provided. Please upload an image file or provide an image URL."}
+
+        # Always use Gemini for image editing in this flow
         if model == "imagen":
-            # For now, fall back to Gemini for image editing since Imagen doesn't support
-            # the same multimodal editing capabilities
-            print("Note: Using Gemini for image editing (Imagen doesn't support multimodal editing)")
-        
-        # Prepare content parts for Gemini
-        parts = []
-        
-        # Add images from URLs first
-        if image_urls.strip():
-            try:
-                print(f"Processing image URL: {image_urls}")
-                image_response = requests.get(image_urls)
-                image_response.raise_for_status()
-                # Convert to base64 string for inline data
-                image_data = base64.b64encode(image_response.content).decode('utf-8')
-                parts.append({
-                    "inlineData": {
-                        "mimeType": "image/jpeg",
-                        "data": image_data
-                    }
-                })
-                print("Successfully added image from URL")
-            except Exception as e:
-                print(f"Error processing image URL {image_urls}: {str(e)}")
-                return {
-                    "error": f"Failed to fetch image from URL: {str(e)}"
-                }
-        
-        # Add uploaded image
-        if image_file and image_file.filename:
-            content = await image_file.read()
-            # Convert to base64 string for inline data
-            image_data = base64.b64encode(content).decode('utf-8')
-            parts.append({
-                "inlineData": {
-                    "mimeType": image_file.content_type,
-                    "data": image_data
-                }
-            })
-            print(f"Successfully added uploaded image: {image_file.filename}")
-        
-        # Create detailed prompt incorporating aspect ratio instruction
+            print("Note: Using Gemini for image editing (Imagen editing not supported in this flow)")
+
+        # Build detailed prompt (text part)
         aspect_ratio_instruction = ""
         if aspect_ratio == "16:9":
             aspect_ratio_instruction = " Maintain a wide, landscape format (16:9 aspect ratio) for the edited image."
@@ -295,7 +251,7 @@ async def edit_image(
             aspect_ratio_instruction = " Maintain a standard 4:3 aspect ratio format for the edited image."
         elif aspect_ratio == "3:4":
             aspect_ratio_instruction = " Maintain a portrait 3:4 aspect ratio format for the edited image."
-        else:  # Default to 1:1
+        else:
             aspect_ratio_instruction = " Maintain a square format (1:1 aspect ratio) for the edited image."
 
         detailed_prompt = f"""You are an expert photo editor AI. Your task is to perform a natural edit on the provided image based on the user's request.
@@ -309,22 +265,74 @@ Editing Guidelines:
 
 Output: Return ONLY the final edited image. Do not return text."""
 
-        # Add the detailed prompt as text part
-        parts.append({"text": detailed_prompt})
-        
-        print(f"Sending {len(parts)} parts to API: {len([p for p in parts if 'inlineData' in p])} image(s) + 1 text prompt")
-        
+        # Prepare image part using SDK typed parts (raw bytes, not base64)
+        image_part = None
+
+        if image_urls.strip():
+            try:
+                print(f"Fetching image from URL: {image_urls}")
+                import requests
+                resp = requests.get(image_urls, timeout=20)
+                resp.raise_for_status()
+                content_type = resp.headers.get("content-type", "image/jpeg").split(";")[0] or "image/jpeg"
+                image_part = types.Part.from_bytes(data=resp.content, mime_type=content_type)
+                print("Successfully prepared image part from URL")
+            except Exception as e:
+                print(f"Error processing image URL {image_urls}: {str(e)}")
+                return {"error": f"Failed to fetch image from URL: {str(e)}"}
+
+        if image_file and image_file.filename:
+            content = await image_file.read()
+            mime_type = image_file.content_type or "image/png"
+
+            # If the file is large, downscale/compress to improve acceptance and latency
+            try:
+                size_bytes = len(content)
+                if size_bytes > 6 * 1024 * 1024:  # >6MB, try to reduce
+                    print(f"Uploaded image is {size_bytes/1024/1024:.2f} MB, downscaling/compressing...")
+                    with Image.open(io.BytesIO(content)) as im:
+                        im = im.convert("RGB")  # ensure JPEG-compatible
+                        max_dim = 2048
+                        w, h = im.size
+                        scale = min(1.0, max_dim / max(w, h))
+                        if scale < 1.0:
+                            new_size = (int(w * scale), int(h * scale))
+                            im = im.resize(new_size, Image.LANCZOS)
+                        buf = io.BytesIO()
+                        im.save(buf, format="JPEG", quality=85, optimize=True)
+                        content = buf.getvalue()
+                        mime_type = "image/jpeg"
+                        print(f"Compressed to {len(content)/1024/1024:.2f} MB")
+            except Exception as e:
+                print(f"Non-fatal image compress error: {e}")
+
+            image_part = types.Part.from_bytes(data=content, mime_type=mime_type)
+            print(f"Successfully prepared image part from uploaded file: {image_file.filename}")
+
+        if not image_part:
+            return {"error": "No valid image part was created from input"}
+
+        # Compose contents as [image, prompt]
+        contents = [image_part, detailed_prompt]
+
         # Use Gemini for image editing
         response = client.models.generate_content(
             model="gemini-2.5-flash-image-preview",
-            contents={"parts": parts},
+            contents=contents,
             config=types.GenerateContentConfig(
-                response_modalities=["IMAGE", "TEXT"]
+                response_modalities=["TEXT", "IMAGE"]
             )
         )
-        
+
+                # Extra debug: log any text the model returned (e.g., safety or guidance)
+        try:
+            if hasattr(response, 'text') and response.text:
+                print(f"Model text response: {response.text[:200]}...")
+        except Exception:
+            pass
+
         image_data = process_gemini_image_response(response)
-        
+
         if image_data:
             return {
                 "message": "Image edited successfully",
@@ -411,6 +419,13 @@ Output: Return ONLY the final composed image. Do not return text."""
             )
         )
         
+                # Extra debug: log any text the model returned (e.g., safety or guidance)
+        try:
+            if hasattr(response, 'text') and response.text:
+                print(f"Model text response: {response.text[:200]}...")
+        except Exception:
+            pass
+
         image_data = process_gemini_image_response(response)
         
         if image_data:
