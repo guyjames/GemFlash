@@ -51,6 +51,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ .
 
-EXPOSE 8000
+EXPOSE 8999
 
-CMD ["/home/appuser/.local/bin/uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/home/appuser/.local/bin/uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8999"]

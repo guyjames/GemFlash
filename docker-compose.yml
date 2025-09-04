@@ -1,11 +1,13 @@
 services:
   gemflash:
     build: .
-    networks:
-      - shared_net
+    ports:
+      - "8999:8999"
+#    networks:
+#      - shared_net
     env_file:
       - .env
 
-networks:
-  shared_net:
-    external: true
+# networks:
+#   shared_net:
+#   external: true

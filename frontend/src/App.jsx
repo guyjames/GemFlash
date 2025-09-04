@@ -7,12 +7,15 @@ import { Label } from "./components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs"
 import { Checkbox } from "./components/ui/checkbox"
-import { Download, Image as ImageIcon, Edit3, Layers, Send, Upload, Sparkles } from 'lucide-react'
+import { Download, Image as ImageIcon, Edit3, Layers, Send, Upload, Sparkles, Bot, Brush } from 'lucide-react'
 import { PaintBrushOverlay, CameraCaptureOverlay, MergeImagesOverlay } from "./components/CreativeProcessingOverlays";
 
 function App() {
   // Tab state
   const [activeTab, setActiveTab] = useState("generate")
+  
+  // Model selection state
+  const [selectedModel, setSelectedModel] = useState("gemini") // "gemini" or "imagen"
   
   // Generate tab state
   const [resolution, setResolution] = useState("1:1")
@@ -45,11 +48,26 @@ function App() {
   const composeFileRef = useRef(null)
 
   const aspectRatios = [
-    { value: "1:1", label: "1:1 Square (1536×1536px) - Social Media Profile" },
-    { value: "16:9", label: "16:9 Widescreen (2816×1536px) - Desktop/Video" },
-    { value: "9:16", label: "9:16 Portrait (1536×2816px) - Mobile/Stories" },
-    { value: "4:3", label: "4:3 Standard (2048×1536px) - Photo Landscape" },
-    { value: "3:4", label: "3:4 Portrait (1536×2048px) - Social Posts" },
+    { value: "1:1", label: "1:1 Square - Social Media Profile" },
+    { value: "16:9", label: "16:9 Widescreen - Desktop/Video" },
+    { value: "9:16", label: "9:16 Portrait - Mobile/Stories" },
+    { value: "4:3", label: "4:3 Standard - Photo Landscape" },
+    { value: "3:4", label: "3:4 Portrait - Social Posts" },
+  ]
+
+  const models = [
+    { 
+      value: "gemini", 
+      label: "Gemini 2.5 Flash Image", 
+      description: "Fast, conversational image generation",
+      icon: Bot
+    },
+    { 
+      value: "imagen", 
+      label: "Imagen 4.0", 
+      description: "High-quality, specialized image generation with aspect ratio control",
+      icon: Brush
+    },
   ]
 
   // Generate image handler
@@ -69,7 +87,11 @@ function App() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ prompt: generatePrompt, aspect_ratio: resolution }),
+        body: JSON.stringify({ 
+          prompt: generatePrompt, 
+          aspect_ratio: resolution,
+          model: selectedModel 
+        }),
       })
       
       const data = await response.json()
@@ -82,6 +104,7 @@ function App() {
           src: `data:image/png;base64,${data.image}`,
           prompt: generatePrompt,
           aspect_ratio: resolution,
+          model: selectedModel,
           type: 'generated'
         }
         setGeneratedImages(prev => [newImage, ...prev])
@@ -116,13 +139,8 @@ function App() {
     try {
       const formData = new FormData()
       formData.append('prompt', editPrompt)
-      formData.append('aspect_ratio', resolution) // Use aspect_ratio parameter for Gemini API
-      
-      // Debug logging
-      console.log('FormData contents:')
-      for (let [key, value] of formData.entries()) {
-        console.log(`${key}:`, value)
-      }
+      formData.append('aspect_ratio', resolution)
+      formData.append('model', selectedModel)
       
       // Use selected image if available
       if (selectedImageForEdit && editImage) {
@@ -151,6 +169,7 @@ function App() {
           id: Date.now(),
           src: `data:image/png;base64,${data.image}`,
           prompt: editPrompt,
+          model: selectedModel,
           type: 'edited',
           originalImage: selectedImageForEdit
         }
@@ -160,6 +179,7 @@ function App() {
           id: Date.now() + 1,
           src: `data:image/png;base64,${data.image}`,
           prompt: editPrompt,
+          model: selectedModel,
           type: 'edited'
         }
         setEditModelImages(prev => [newModelImage, ...prev])
@@ -204,6 +224,7 @@ function App() {
     try {
       const formData = new FormData()
       formData.append('prompt', composePrompt)
+      formData.append('model', selectedModel)
       
       // Add selected images
       selectedImages.forEach((img, index) => {
@@ -226,6 +247,7 @@ function App() {
           id: Date.now(),
           src: `data:image/png;base64,${data.image}`,
           prompt: composePrompt,
+          model: selectedModel,
           type: 'composed'
         }
         setComposedImages(prev => [newImage, ...prev])
@@ -250,6 +272,7 @@ function App() {
       id: Date.now(),
       src: image.src,
       prompt: image.prompt,
+      model: image.model,
       type: 'model'
     }
     setEditModelImages(prev => [editImage, ...prev])
@@ -305,6 +328,7 @@ function App() {
         id: Date.now() + Math.random(),
         src: image.src,
         prompt: image.prompt || 'Composed image',
+        model: image.model,
         type: 'transferred'
       }
       
@@ -420,6 +444,20 @@ function App() {
     }
   }
 
+  // Get model badge for images
+  const getModelBadge = (model) => {
+    const modelInfo = models.find(m => m.value === model)
+    if (!modelInfo) return null
+    
+    const Icon = modelInfo.icon
+    return (
+      <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
+        <Icon className="w-3 h-3" />
+        {modelInfo.label}
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <PaintBrushOverlay open={isGenerating} />
@@ -428,13 +466,41 @@ function App() {
       {/* Header */}
       <div className="bg-card border-b border-border">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-white" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-primary to-accent rounded-xl flex items-center justify-center">
+                <Sparkles className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-foreground">GemFlash</h1>
+                <p className="text-sm text-muted-foreground">AI-powered image generation and editing</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">GemFlash</h1>
-              <p className="text-sm text-muted-foreground">Powered by Google Gemini 2.5 Flash Image</p>
+            
+            {/* Model Selection */}
+            <div className="min-w-[200px]">
+              <Label htmlFor="model-select" className="text-sm font-medium">AI Model</Label>
+              <Select value={selectedModel} onValueChange={setSelectedModel}>
+                <SelectTrigger id="model-select">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {models.map((model) => {
+                    const Icon = model.icon
+                    return (
+                      <SelectItem key={model.value} value={model.value}>
+                        <div className="flex items-center gap-2">
+                          <Icon className="w-4 h-4" />
+                          <div>
+                            <div className="font-medium">{model.label}</div>
+                            <div className="text-xs text-muted-foreground">{model.description}</div>
+                          </div>
+                        </div>
+                      </SelectItem>
+                    )
+                  })}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
@@ -469,24 +535,40 @@ function App() {
             <Card>
               <CardHeader>
                 <CardTitle>Generate Image</CardTitle>
-                <CardDescription>Create new images from text prompts</CardDescription>
+                <CardDescription>
+                  Create new images from text prompts using {models.find(m => m.value === selectedModel)?.label}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="resolution">Aspect Ratio</Label>
-                  <Select value={resolution} onValueChange={setResolution}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {aspectRatios.map((ratio) => (
-                        <SelectItem key={ratio.value} value={ratio.value}>
-                          {ratio.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {/* Conditionally show aspect ratio only for Imagen */}
+                {selectedModel === "imagen" && (
+                  <div>
+                    <Label htmlFor="resolution">Aspect Ratio</Label>
+                    <Select value={resolution} onValueChange={setResolution}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {aspectRatios.map((ratio) => (
+                          <SelectItem key={ratio.value} value={ratio.value}>
+                            {ratio.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Show note for Gemini */}
+                {selectedModel === "gemini" && (
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800">
+                      <Bot className="w-4 h-4 inline mr-1" />
+                      <strong>Gemini 2.5 Flash:</strong> Generates square (1:1) images by default. 
+                      For precise aspect ratio control, switch to Imagen 4.0.
+                    </p>
+                  </div>
+                )}
                 
                 <div>
                   <Label htmlFor="prompt">Prompt</Label>
@@ -519,12 +601,13 @@ function App() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {generatedImages.map((image) => (
                       <Card key={image.id} className="overflow-hidden">
-                        <div className="aspect-square relative">
+                        <div className="relative bg-gray-100">
                           <img 
                             src={image.src} 
                             alt={image.prompt}
-                            className="w-full h-full object-cover"
+                            className="w-full h-auto object-contain"
                           />
+                          {getModelBadge(image.model)}
                         </div>
                         <CardContent className="p-3">
                           <p className="text-sm text-gray-600 mb-3 line-clamp-2">{image.prompt}</p>
@@ -553,9 +636,19 @@ function App() {
             <Card>
               <CardHeader>
                 <CardTitle>Edit Image</CardTitle>
-                <CardDescription>Modify existing images with AI</CardDescription>
+                <CardDescription>
+                  Modify existing images with AI using {models.find(m => m.value === selectedModel)?.label}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Show note for image editing */}
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-800">
+                    <Edit3 className="w-4 h-4 inline mr-1" />
+                    <strong>Note:</strong> Image editing uses Gemini's multimodal capabilities regardless of selected model.
+                  </p>
+                </div>
+
                 {/* Show selected image preview */}
                 {selectedImageForEdit && (
                   <div className="border rounded-lg p-4 bg-gray-50">
@@ -593,6 +686,7 @@ function App() {
                               id: Date.now(),
                               src: e.target.result,
                               prompt: file.name,
+                              model: selectedModel,
                               type: 'uploaded'
                             }
                             setEditModelImages(prev => [newImage, ...prev])
@@ -655,12 +749,13 @@ function App() {
                         }`}
                         onClick={() => selectImageForEdit(image)}
                       >
-                        <div className="aspect-square relative">
+                        <div className="relative bg-gray-100">
                           <img 
                             src={image.src} 
                             alt={image.prompt || 'Image'}
-                            className="w-full h-full object-cover"
+                            className="w-full h-auto object-contain"
                           />
+                          {image.model && getModelBadge(image.model)}
                           {selectedImageForEdit?.id === image.id && (
                             <div className="absolute inset-0 bg-blue-500 bg-opacity-20 flex items-center justify-center">
                               <div className="bg-blue-500 text-white px-2 py-1 rounded-full text-xs font-medium">
@@ -711,12 +806,13 @@ function App() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {editedImages.map((image) => (
                       <Card key={image.id} className="overflow-hidden">
-                        <div className="aspect-square relative">
+                        <div className="relative bg-gray-100">
                           <img 
                             src={image.src} 
                             alt={image.prompt}
-                            className="w-full h-full object-cover"
+                            className="w-full h-auto object-contain"
                           />
+                          {image.model && getModelBadge(image.model)}
                         </div>
                         <CardContent className="p-3">
                           <p className="text-sm text-gray-600 mb-3 line-clamp-2">{image.prompt}</p>
@@ -742,9 +838,19 @@ function App() {
             <Card>
               <CardHeader>
                 <CardTitle>Compose Images</CardTitle>
-                <CardDescription>Combine multiple images into one composition</CardDescription>
+                <CardDescription>
+                  Combine multiple images into one composition using {models.find(m => m.value === selectedModel)?.label}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Show note for image composition */}
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                  <p className="text-sm text-amber-800">
+                    <Layers className="w-4 h-4 inline mr-1" />
+                    <strong>Note:</strong> Image composition uses Gemini's multimodal capabilities regardless of selected model.
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label>Upload Images</Label>
@@ -810,11 +916,11 @@ function App() {
                         }`} 
                         onClick={() => toggleComposeSelection(image.id)}
                       >
-                        <div className="aspect-square relative">
+                        <div className="relative bg-gray-100">
                           <img 
                             src={image.src} 
                             alt={image.name}
-                            className="w-full h-full object-cover"
+                            className="w-full h-auto object-contain"
                           />
                           <div className="absolute top-2 left-2 bg-white rounded-full p-1 shadow-lg">
                             <Checkbox 
@@ -861,12 +967,13 @@ function App() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {composedImages.map((image) => (
                       <Card key={image.id} className="overflow-hidden">
-                        <div className="aspect-square relative">
+                        <div className="relative bg-gray-100">
                           <img 
                             src={image.src} 
                             alt={image.prompt}
-                            className="w-full h-full object-cover"
+                            className="w-full h-auto object-contain"
                           />
+                          {image.model && getModelBadge(image.model)}
                         </div>
                         <CardContent className="p-3">
                           <p className="text-sm text-gray-600 mb-3 line-clamp-2">{image.prompt}</p>
