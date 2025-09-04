@@ -190,19 +190,25 @@ Output: Return ONLY the final generated image. Do not return text."""
         
         if image_data:
             return {
-                "message": "Image generated successfully",
-                "prompt": request.prompt,
-                "aspect_ratio": request.aspect_ratio,
-                "model": request.model,
-                "image": image_data
+            "message": "Image edited successfully" if 'edit' in __name__ else "Image generated successfully",
+            "prompt": prompt if 'prompt' in locals() else getattr(request, 'prompt', None),
+            "aspect_ratio": aspect_ratio if 'aspect_ratio' in locals() else getattr(request, 'aspect_ratio', None),
+            "model": model if 'model' in locals() else getattr(request, 'model', None),
+            "image": image_data
             }
         else:
+            safety = _extract_gemini_safety_info(response)
+            blocked = (safety.get('finish_reason') in ['SAFETY', 'BLOCKED', 'FILTERED']) or any(r.get('blocked') for r in safety.get('safety_ratings', []))
+            if blocked:
+                return {
+                    "error": "Request blocked by model safety filters",
+                    "reason": safety.get('finish_reason') or "SAFETY_FILTERED",
+                    "safety_ratings": safety.get('safety_ratings', []),
+                    "tip": "Rephrase to be clearly about adults and avoid sexualized content. Example: 'Make this a 9:16 portrait. Keep the same adult (25+) fully clothed in a casual knee-length skirt. Replace the background with a modern hotel room interior.'"
+                }
             return {
-                "message": "Image generation completed, but no image data found",
-                "prompt": request.prompt,
-                "aspect_ratio": request.aspect_ratio,
-                "model": request.model,
-                "response": "No image data available"
+                "message": "No image data available",
+                "prompt": prompt if 'prompt' in locals() else getattr(request, 'prompt', None)
             }
     except Exception as e:
         print(f"Exception occurred: {str(e)}")
@@ -215,6 +221,32 @@ Output: Return ONLY the final generated image. Do not return text."""
             "request_model": request.model
         }
         return error_details
+
+
+def _extract_gemini_safety_info(response):
+    info = {"finish_reason": None, "safety_ratings": []}
+    try:
+        if hasattr(response, 'candidates') and response.candidates:
+            cand = response.candidates[0]
+            fr = getattr(cand, 'finish_reason', None) or getattr(cand, 'finishReason', None)
+            info['finish_reason'] = fr
+            ratings = getattr(cand, 'safety_ratings', None) or getattr(cand, 'safetyRatings', None)
+            if ratings:
+                for r in ratings:
+                    try:
+                        cat = getattr(r, 'category', None)
+                        blocked = bool(getattr(r, 'blocked', False))
+                        prob = getattr(r, 'probability', None) or getattr(r, 'probability_level', None) or getattr(r, 'prob', None)
+                        info['safety_ratings'].append({
+                            'category': str(cat) if cat is not None else None,
+                            'blocked': blocked,
+                            'probability': str(prob) if prob is not None else None,
+                        })
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+    return info
 
 # Image editing endpoint
 @api.post("/edit_image")
@@ -335,17 +367,25 @@ Output: Return ONLY the final edited image. Do not return text."""
 
         if image_data:
             return {
-                "message": "Image edited successfully",
-                "prompt": prompt,
-                "aspect_ratio": aspect_ratio,
-                "model": model,
-                "image": image_data
+            "message": "Image edited successfully" if 'edit' in __name__ else "Image generated successfully",
+            "prompt": prompt if 'prompt' in locals() else getattr(request, 'prompt', None),
+            "aspect_ratio": aspect_ratio if 'aspect_ratio' in locals() else getattr(request, 'aspect_ratio', None),
+            "model": model if 'model' in locals() else getattr(request, 'model', None),
+            "image": image_data
             }
         else:
+            safety = _extract_gemini_safety_info(response)
+            blocked = (safety.get('finish_reason') in ['SAFETY', 'BLOCKED', 'FILTERED']) or any(r.get('blocked') for r in safety.get('safety_ratings', []))
+            if blocked:
+                return {
+                    "error": "Request blocked by model safety filters",
+                    "reason": safety.get('finish_reason') or "SAFETY_FILTERED",
+                    "safety_ratings": safety.get('safety_ratings', []),
+                    "tip": "Rephrase to be clearly about adults and avoid sexualized content. Example: 'Make this a 9:16 portrait. Keep the same adult (25+) fully clothed in a casual knee-length skirt. Replace the background with a modern hotel room interior.'"
+                }
             return {
-                "message": "Image editing completed, but no image data found",
-                "prompt": prompt,
-                "response": "No image data available"
+                "message": "No image data available",
+                "prompt": prompt if 'prompt' in locals() else getattr(request, 'prompt', None)
             }
     except Exception as e:
         print(f"Exception in edit_image: {str(e)}")
