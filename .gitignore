@@ -63,3 +63,10 @@ docker-compose.override.yml
 
 # Ignore backup artifacts
 *.backup*
+
+# Build artifacts
+frontend/dist/
+frontend/.vite/
+
+# Python bytecode
+**/__pycache__/
