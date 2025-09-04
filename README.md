@@ -91,3 +91,17 @@ The application is designed for deployment behind Nginx Proxy Manager on a Docke
 ## 📄 License
 
 This project is developed following enterprise security standards and is intended for internal use as specified in the security documentation.
+
+## New: Model Switching (Gemini vs Imagen)
+
+GemFlash now supports switching between AI models for image generation:
+
+- Use the Model dropdown in the header to choose between:
+  - Gemini 2.5 Flash Image – fast, conversational generation (produces square images)
+  - Imagen 4.0 – high-quality generation with precise aspect ratio control
+- When Imagen is selected, an Aspect Ratio dropdown appears with common ratios (1:1, 16:9, 9:16, 4:3, 3:4). Generated images respect the selected ratio.
+- When Gemini is selected, aspect ratio controls are hidden since Gemini generates square images.
+- Image Editing and Image Composition flows continue to use Gemini for multimodal capabilities, regardless of the selected model.
+- Generated images display a badge indicating which model created them.
+
+For full details, see FEATURE_MODEL_SELECTION.md.
