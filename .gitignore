@@ -60,3 +60,6 @@ docker-compose.override.yml
 *.backup
 /.claude-flow/metrics/system-metrics.json
 **/.claude-flow/metrics/system-metrics.json
+
+# Ignore backup artifacts
+*.backup*
