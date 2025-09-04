@@ -10,6 +10,7 @@ A containerized web application that uses Google Gemini 2.5 Flash Image API to g
 - **Reuse Workflow**: Generated and composed images can be reused for further editing
 - **Modern UI**: Built with React, ShadCN UI components, and Tailwind CSS
 - **Docker Ready**: Fully containerized for easy deployment
+- **Model Switching**: This fork features the ability to choose between gemini-2.5-flash-image-preview (nano banana) which creates all images as 1:1 (square) aspect ratio, and the full-featured Imagen model which has a dropdown menu for selecting your required aspect ratio for the generated image.
 
 ## 🔧 Setup & Installation
 
@@ -44,8 +45,8 @@ docker-compose up -d
 
 ### 3. Access the Application
 
-- **Web Interface**: http://localhost:8000
-- **API Documentation**: http://localhost:8000/api/docs
+- **Web Interface**: http://localhost:8999
+- **API Documentation**: http://localhost:8999/api/docs
 
 ## 📁 Project Structure
 
