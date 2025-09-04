@@ -5,7 +5,22 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>GemFlash - AI Image Editor</title>
-  </head>
+  <script>
+(function(){
+  try {
+    var key='theme';
+    var root=document.documentElement;
+    var stored=localStorage.getItem(key);
+    var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var useDark;
+    if (stored === 'dark') useDark = true;
+    else if (stored === 'light') useDark = false;
+    else useDark = prefersDark;
+    if (useDark) root.classList.add('dark'); else root.classList.remove('dark');
+  } catch (e) {}
+})();
+</script>
+</head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>

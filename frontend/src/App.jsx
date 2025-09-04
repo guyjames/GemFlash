@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Button } from "./components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./components/ui/select"
 import { Textarea } from "./components/ui/textarea"
@@ -7,7 +7,7 @@ import { Label } from "./components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./components/ui/tabs"
 import { Checkbox } from "./components/ui/checkbox"
-import { Download, Image as ImageIcon, Edit3, Layers, Send, Upload, Sparkles, Bot, Brush } from 'lucide-react'
+import { Bot, Brush, Download, Edit3, Image as ImageIcon, Layers, Monitor, Moon, Send, Sparkles, Sun, Upload } from 'lucide-react'
 import { PaintBrushOverlay, CameraCaptureOverlay, MergeImagesOverlay } from "./components/CreativeProcessingOverlays";
 
 function App() {
@@ -42,7 +42,26 @@ function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isComposing, setIsComposing] = useState(false);
-  
+  // Theme (system | light | dark) with auto-switching
+  const getSystemIsDark = () => (
+    window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
+  const [themeMode, setThemeMode] = useState(() => {
+    try { return localStorage.getItem('theme') || 'system'; } catch { return 'system'; }
+  });
+  // Apply theme and subscribe to system changes when in 'system' mode
+  useEffect(() => {
+    const root = document.documentElement;
+    const media = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : { matches: false };
+    const apply = (isDark) => { if (isDark) root.classList.add('dark'); else root.classList.remove('dark'); };
+    if (themeMode === 'system') { apply(media.matches); } else { apply(themeMode === 'dark'); }
+    const handler = (e) => { if (themeMode === 'system') apply(e.matches); };
+    if (media.addEventListener) media.addEventListener('change', handler); else if (media.addListener) media.addListener(handler);
+    return () => { if (media.removeEventListener) media.removeEventListener('change', handler); else if (media.removeListener) media.removeListener(handler); };
+  }, [themeMode]);
+  // Persist selection
+  useEffect(() => { try { localStorage.setItem('theme', themeMode); } catch {} }, [themeMode]);
+
   // File input refs
   const editFileRef = useRef(null)
   const composeFileRef = useRef(null)
@@ -477,8 +496,9 @@ function App() {
               </div>
             </div>
             
-            {/* Model Selection */}
-            <div className="min-w-[200px]">
+            <div className="flex items-center gap-3">
+              {/* Model Selection */}
+              <div className="min-w-[200px]">
               <Label htmlFor="model-select" className="text-sm font-medium">AI Model</Label>
               <Select value={selectedModel} onValueChange={setSelectedModel}>
                 <SelectTrigger id="model-select">
@@ -501,6 +521,25 @@ function App() {
                   })}
                 </SelectContent>
               </Select>
+            </div>
+              <div className="min-w-[180px]">
+                <Label className="text-sm font-medium">Theme</Label>
+                <Select value={themeMode} onValueChange={setThemeMode}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="system">
+                      <div className="flex items-center gap-2"><Monitor className="w-4 h-4" /> System</div>
+                    </SelectItem>
+                    <SelectItem value="light">
+                      <div className="flex items-center gap-2"><Sun className="w-4 h-4" /> Light</div>
+                    </SelectItem>
+                    <SelectItem value="dark">
+                      <div className="flex items-center gap-2"><Moon className="w-4 h-4" /> Dark</div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="text-xs text-muted-foreground mt-1">System follows your device theme.</div>
+              </div>
             </div>
           </div>
         </div>
