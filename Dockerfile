@@ -3,7 +3,7 @@ FROM debian:stable-slim AS favicon_generator
 
 RUN apt-get update && apt-get install -y wget imagemagick && rm -rf /var/lib/apt/lists/*
 
-RUN wget -O /tmp/logo.jpg https://snipshot.io/uploads/wlHDlHC.jpg
+RUN wget -O /tmp/logo.jpg https://nano-banana-ai.org/images/nano-banana-ai-logo.png
 
 RUN convert /tmp/logo.jpg -define icon:auto-resize=256,128,64,48,32,16 /tmp/favicon.ico
 
