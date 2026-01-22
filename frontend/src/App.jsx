@@ -13,15 +13,15 @@ import { PaintBrushOverlay, CameraCaptureOverlay, MergeImagesOverlay } from "./c
 function App() {
   // Tab state
   const [activeTab, setActiveTab] = useState("generate")
-  
+
   // Model selection state
-  const [selectedModel, setSelectedModel] = useState("gemini") // "gemini" or "imagen"
-  
+  const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash-image") // "gemini-2.5-flash-image", "gemini-3-pro-image-preview", or "imagen"
+
   // Generate tab state
   const [resolution, setResolution] = useState("1:1")
   const [generatePrompt, setGeneratePrompt] = useState("")
   const [generatedImages, setGeneratedImages] = useState([])
-  
+
   // Edit tab state  
   const [editPrompt, setEditPrompt] = useState("")
   const [editImage, setEditImage] = useState(null)
@@ -29,13 +29,13 @@ function App() {
   const [editedImages, setEditedImages] = useState([])
   const [selectedImageForEdit, setSelectedImageForEdit] = useState(null)
   const [editModelImages, setEditModelImages] = useState([])
-  
+
   // Compose tab state
   const [composePrompt, setComposePrompt] = useState("")
   const [composeImages, setComposeImages] = useState([])
   const [selectedForCompose, setSelectedForCompose] = useState(new Set())
   const [composedImages, setComposedImages] = useState([])
-  
+
   // UI state
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -60,7 +60,7 @@ function App() {
     return () => { if (media.removeEventListener) media.removeEventListener('change', handler); else if (media.removeListener) media.removeListener(handler); };
   }, [themeMode]);
   // Persist selection
-  useEffect(() => { try { localStorage.setItem('theme', themeMode); } catch {} }, [themeMode]);
+  useEffect(() => { try { localStorage.setItem('theme', themeMode); } catch { } }, [themeMode]);
 
   // File input refs
   const editFileRef = useRef(null)
@@ -75,15 +75,21 @@ function App() {
   ]
 
   const models = [
-    { 
-      value: "gemini", 
-      label: "Gemini 2.5 Flash Image", 
+    {
+      value: "gemini-2.5-flash-image",
+      label: "Gemini 2.5 Flash Image",
       description: "Fast, conversational image generation",
       icon: Bot
     },
-    { 
-      value: "imagen", 
-      label: "Imagen 4.0", 
+    {
+      value: "gemini-3-pro-image-preview",
+      label: "Gemini 3 Pro Image (Preview)",
+      description: "Highest quality reasoning and multimodal generation",
+      icon: Sparkles
+    },
+    {
+      value: "imagen",
+      label: "Imagen 4.0",
       description: "High-quality, specialized image generation with aspect ratio control",
       icon: Brush
     },
@@ -99,22 +105,22 @@ function App() {
     setLoading(true)
     setIsGenerating(true)
     setError("")
-    
+
     try {
       const response = await fetch('/api/generate_image', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          prompt: generatePrompt, 
+        body: JSON.stringify({
+          prompt: generatePrompt,
           aspect_ratio: resolution,
-          model: selectedModel 
+          model: selectedModel
         }),
       })
-      
+
       const data = await response.json()
-      
+
       if (data.error) {
         setError(data.error)
       } else if (data.image) {
@@ -154,13 +160,13 @@ function App() {
     setLoading(true)
     setIsEditing(true)
     setError("")
-    
+
     try {
       const formData = new FormData()
       formData.append('prompt', editPrompt)
       formData.append('aspect_ratio', resolution)
       formData.append('model', selectedModel)
-      
+
       // Use selected image if available
       if (selectedImageForEdit && editImage) {
         formData.append('image_file', editImage)
@@ -169,18 +175,18 @@ function App() {
       } else if (editImage) {
         formData.append('image_file', editImage)
       }
-      
+
       const response = await fetch('/api/edit_image', {
         method: 'POST',
         body: formData,
       })
-      
+
       const data = await response.json()
-      
+
       if (!response.ok) {
         throw new Error(data.error || `HTTP error! status: ${response.status}`)
       }
-      
+
       if (data.error) {
         setError(data.error)
       } else if (data.image) {
@@ -239,26 +245,26 @@ function App() {
     setLoading(true)
     setIsComposing(true)
     setError("")
-    
+
     try {
       const formData = new FormData()
       formData.append('prompt', composePrompt)
       formData.append('model', selectedModel)
-      
+
       // Add selected images
       selectedImages.forEach((img, index) => {
         if (img.file) {
           formData.append('image_files', img.file)
         }
       })
-      
+
       const response = await fetch('/api/compose_images', {
         method: 'POST',
         body: formData,
       })
-      
+
       const data = await response.json()
-      
+
       if (data.error) {
         setError(data.error)
       } else if (data.image) {
@@ -338,10 +344,10 @@ function App() {
       // Convert base64 to blob
       const response = await fetch(image.src)
       const blob = await response.blob()
-      
+
       // Create a File object from the blob
       const file = new File([blob], `composed-image-${image.id}.png`, { type: 'image/png' })
-      
+
       // Add to edit model images and select it
       const newModelImage = {
         id: Date.now() + Math.random(),
@@ -350,7 +356,7 @@ function App() {
         model: image.model,
         type: 'transferred'
       }
-      
+
       // Set the edit file and add to model images
       setEditImage(file)
       setEditImageUrl("") // Clear URL field when transferring composed images
@@ -368,10 +374,10 @@ function App() {
       // Convert base64 to blob
       const response = await fetch(image.src)
       const blob = await response.blob()
-      
+
       // Create a File object from the blob
       const file = new File([blob], `composed-image-${image.id}.png`, { type: 'image/png' })
-      
+
       // Create image object for composition
       const newImage = {
         id: Date.now() + Math.random(),
@@ -379,7 +385,7 @@ function App() {
         file: file,
         name: `composed-image-${image.id}.png`
       }
-      
+
       // Add to composition images and switch to compose tab
       setComposeImages(prev => [...prev, newImage])
       setActiveTab('compose')
@@ -467,7 +473,7 @@ function App() {
   const getModelBadge = (model) => {
     const modelInfo = models.find(m => m.value === model)
     if (!modelInfo) return null
-    
+
     const Icon = modelInfo.icon
     return (
       <div className="absolute top-2 left-2 bg-black/70 text-white px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
@@ -495,33 +501,33 @@ function App() {
                 <p className="text-sm text-muted-foreground">AI-powered image generation and editing</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               {/* Model Selection */}
               <div className="min-w-[200px]">
-              <Label htmlFor="model-select" className="text-sm font-medium">AI Model</Label>
-              <Select value={selectedModel} onValueChange={setSelectedModel}>
-                <SelectTrigger id="model-select">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {models.map((model) => {
-                    const Icon = model.icon
-                    return (
-                      <SelectItem key={model.value} value={model.value}>
-                        <div className="flex items-center gap-2">
-                          <Icon className="w-4 h-4" />
-                          <div>
-                            <div className="font-medium">{model.label}</div>
-                            <div className="text-xs text-muted-foreground">{model.description}</div>
+                <Label htmlFor="model-select" className="text-sm font-medium">AI Model</Label>
+                <Select value={selectedModel} onValueChange={setSelectedModel}>
+                  <SelectTrigger id="model-select">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {models.map((model) => {
+                      const Icon = model.icon
+                      return (
+                        <SelectItem key={model.value} value={model.value}>
+                          <div className="flex items-center gap-2">
+                            <Icon className="w-4 h-4" />
+                            <div>
+                              <div className="font-medium">{model.label}</div>
+                              <div className="text-xs text-muted-foreground">{model.description}</div>
+                            </div>
                           </div>
-                        </div>
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="min-w-[180px]">
                 <Label className="text-sm font-medium">Theme</Label>
                 <Select value={themeMode} onValueChange={setThemeMode}>
@@ -579,8 +585,8 @@ function App() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Conditionally show aspect ratio only for Imagen */}
-                {selectedModel === "imagen" && (
+                {/* Conditionally show aspect ratio for Imagen AND Gemini 3 Pro */}
+                {(selectedModel === "imagen" || selectedModel === "gemini-3-pro-image-preview") && (
                   <div>
                     <Label htmlFor="resolution">Aspect Ratio</Label>
                     <Select value={resolution} onValueChange={setResolution}>
@@ -598,17 +604,17 @@ function App() {
                   </div>
                 )}
 
-                {/* Show note for Gemini */}
-                {selectedModel === "gemini" && (
+                {/* Show note for Gemini 2.5 Flash */}
+                {selectedModel === "gemini-2.5-flash-image" && (
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <p className="text-sm text-blue-800">
                       <Bot className="w-4 h-4 inline mr-1" />
-                      <strong>Gemini 2.5 Flash:</strong> Generates square (1:1) images by default. 
-                      For precise aspect ratio control, switch to Imagen 4.0.
+                      <strong>{models.find(m => m.value === selectedModel)?.label}:</strong> Generates square (1:1) images by default.
+                      For aspect ratio control, use Gemini 3 Pro or Imagen 4.0.
                     </p>
                   </div>
                 )}
-                
+
                 <div>
                   <Label htmlFor="prompt">Prompt</Label>
                   <Textarea
@@ -619,9 +625,9 @@ function App() {
                     className="min-h-[100px]"
                   />
                 </div>
-                
-                <Button 
-                  onClick={handleGenerateImage} 
+
+                <Button
+                  onClick={handleGenerateImage}
                   disabled={loading || !generatePrompt.trim()}
                   className="w-full"
                 >
@@ -641,8 +647,8 @@ function App() {
                     {generatedImages.map((image) => (
                       <Card key={image.id} className="overflow-hidden">
                         <div className="relative bg-gray-100">
-                          <img 
-                            src={image.src} 
+                          <img
+                            src={image.src}
                             alt={image.prompt}
                             className="w-full h-auto object-contain"
                           />
@@ -693,9 +699,9 @@ function App() {
                   <div className="border rounded-lg p-4 bg-gray-50">
                     <Label className="text-sm font-medium text-gray-700 mb-2 block">Selected Image:</Label>
                     <div className="flex items-center gap-3">
-                      <img 
-                        src={selectedImageForEdit.src} 
-                        alt="Selected" 
+                      <img
+                        src={selectedImageForEdit.src}
+                        alt="Selected"
                         className="w-16 h-16 object-cover rounded-lg border"
                       />
                       <div className="flex-1">
@@ -759,8 +765,8 @@ function App() {
                   />
                 </div>
 
-                <Button 
-                  onClick={handleEditImage} 
+                <Button
+                  onClick={handleEditImage}
                   disabled={loading || !editPrompt.trim() || (!selectedImageForEdit && !editImage && !editImageUrl.trim())}
                   className="w-full"
                 >
@@ -779,18 +785,17 @@ function App() {
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {editModelImages.map((image) => (
-                      <Card 
-                        key={image.id} 
-                        className={`overflow-hidden cursor-pointer transition-all ${
-                          selectedImageForEdit?.id === image.id 
-                            ? 'ring-2 ring-blue-500 bg-blue-50' 
-                            : 'hover:shadow-md'
-                        }`}
+                      <Card
+                        key={image.id}
+                        className={`overflow-hidden cursor-pointer transition-all ${selectedImageForEdit?.id === image.id
+                          ? 'ring-2 ring-blue-500 bg-blue-50'
+                          : 'hover:shadow-md'
+                          }`}
                         onClick={() => selectImageForEdit(image)}
                       >
                         <div className="relative bg-gray-100">
-                          <img 
-                            src={image.src} 
+                          <img
+                            src={image.src}
                             alt={image.prompt || 'Image'}
                             className="w-full h-auto object-contain"
                           />
@@ -846,8 +851,8 @@ function App() {
                     {editedImages.map((image) => (
                       <Card key={image.id} className="overflow-hidden">
                         <div className="relative bg-gray-100">
-                          <img 
-                            src={image.src} 
+                          <img
+                            src={image.src}
                             alt={image.prompt}
                             className="w-full h-auto object-contain"
                           />
@@ -921,8 +926,8 @@ function App() {
                   />
                 </div>
 
-                <Button 
-                  onClick={handleComposeImages} 
+                <Button
+                  onClick={handleComposeImages}
                   disabled={loading || !composePrompt.trim() || selectedForCompose.size === 0}
                   className="w-full"
                 >
@@ -937,8 +942,8 @@ function App() {
                 <CardHeader>
                   <CardTitle>Select Images for Composition</CardTitle>
                   <CardDescription>
-                    {selectedForCompose.size === 0 
-                      ? "Click on images to select them for composition. You must select at least one image before composing." 
+                    {selectedForCompose.size === 0
+                      ? "Click on images to select them for composition. You must select at least one image before composing."
                       : `${selectedForCompose.size} image${selectedForCompose.size > 1 ? 's' : ''} selected`
                     }
                   </CardDescription>
@@ -946,31 +951,30 @@ function App() {
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {composeImages.map((image) => (
-                      <Card 
-                        key={image.id} 
-                        className={`overflow-hidden cursor-pointer transition-all border-2 ${
-                          selectedForCompose.has(image.id) 
-                            ? 'border-blue-500 ring-2 ring-blue-200 shadow-lg' 
-                            : 'border-transparent hover:border-gray-300'
-                        }`} 
+                      <Card
+                        key={image.id}
+                        className={`overflow-hidden cursor-pointer transition-all border-2 ${selectedForCompose.has(image.id)
+                          ? 'border-blue-500 ring-2 ring-blue-200 shadow-lg'
+                          : 'border-transparent hover:border-gray-300'
+                          }`}
                         onClick={() => toggleComposeSelection(image.id)}
                       >
                         <div className="relative bg-gray-100">
-                          <img 
-                            src={image.src} 
+                          <img
+                            src={image.src}
                             alt={image.name}
                             className="w-full h-auto object-contain"
                           />
                           <div className="absolute top-2 left-2 bg-white rounded-full p-1 shadow-lg">
-                            <Checkbox 
+                            <Checkbox
                               checked={selectedForCompose.has(image.id)}
                               onChange={() => toggleComposeSelection(image.id)}
                               className="w-5 h-5"
                             />
                           </div>
                           <div className="absolute top-2 right-2">
-                            <Button 
-                              size="sm" 
+                            <Button
+                              size="sm"
                               variant="destructive"
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -1007,8 +1011,8 @@ function App() {
                     {composedImages.map((image) => (
                       <Card key={image.id} className="overflow-hidden">
                         <div className="relative bg-gray-100">
-                          <img 
-                            src={image.src} 
+                          <img
+                            src={image.src}
                             alt={image.prompt}
                             className="w-full h-auto object-contain"
                           />

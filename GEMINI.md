@@ -1,6 +1,6 @@
 # Component Documentation: Google Gemini API Integration
 
-This document outlines the purpose, security considerations, and operational guidelines for the integration with the Google Gemini 2.5 Flash Image API. All practices must align with the master security policy in `CONDUCTOR.md`.
+This document outlines the purpose, security considerations, and operational guidelines for the integration with the Google Gemini 2.5 Flash Image API and Gemini 3 Pro Image Preview. All practices must align with the master security policy in `CONDUCTOR.md`.
 
 ## 1. Overview
 

@@ -32,13 +32,13 @@ client = genai.Client(api_key=api_key)
 class ImageGenerationRequest(BaseModel):
     prompt: str
     aspect_ratio: str = "1:1"
-    model: str = "gemini"  # "gemini" or "imagen"
+    model: str = "gemini-2.5-flash-image"  # "gemini-2.5-flash-image", "gemini-3-pro-image-preview", or "imagen"
 
 class ImageEditRequest(BaseModel):
     prompt: str
     image_urls: List[str] = []
     aspect_ratio: str = "1:1"
-    model: str = "gemini"  # "gemini" or "imagen"
+    model: str = "gemini-2.5-flash-image"  # "gemini-2.5-flash-image", "gemini-3-pro-image-preview", or "imagen"
 
 # Utility function to process image data from Gemini
 def process_gemini_image_response(response):
@@ -170,8 +170,15 @@ Generation Guidelines:
 Output: Return ONLY the final generated image. Do not return text."""
 
                 # Use Gemini native image generation
+                # Select model - default to gemini-2.5-flash-image if just "gemini" is passed
+                gemini_model = request.model
+                if gemini_model == "gemini":
+                    gemini_model = "gemini-2.5-flash-image"
+                
+                print(f"Using Gemini model: {gemini_model}")
+
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash-image-preview",
+                    model=gemini_model,
                     contents={"parts": [{"text": detailed_prompt}]},
                     config=types.GenerateContentConfig(
                         response_modalities=["TEXT", "IMAGE"]
@@ -179,6 +186,7 @@ Output: Return ONLY the final generated image. Do not return text."""
                 )
                 print(f"Gemini API call completed successfully")
                 
+                image_data = process_gemini_image_response(response)
                 
             except Exception as e:
                 print(f"Error calling Gemini API: {str(e)}")
@@ -348,8 +356,16 @@ Output: Return ONLY the final edited image. Do not return text."""
         contents = [image_part, detailed_prompt]
 
         # Use Gemini for image editing
+        # Select model - default to gemini-2.5-flash-image if just "gemini" is passed
+        gemini_model = model
+        if gemini_model == "gemini" or gemini_model == "imagen": 
+             # Fallback to default if legacy "gemini" or if "imagen" was selected (since imagen doesn't support this flow)
+            gemini_model = "gemini-2.5-flash-image"
+            
+        print(f"Using Gemini model for editing: {gemini_model}")
+
         response = client.models.generate_content(
-            model="gemini-2.5-flash-image-preview",
+            model=gemini_model,
             contents=contents,
             config=types.GenerateContentConfig(
                 response_modalities=["TEXT", "IMAGE"]
@@ -451,8 +467,15 @@ Output: Return ONLY the final composed image. Do not return text."""
         parts.append({"text": detailed_prompt})
         
         # Use Gemini for image composition
+        # Select model
+        gemini_model = model
+        if gemini_model == "gemini" or gemini_model == "imagen":
+            gemini_model = "gemini-2.5-flash-image"
+            
+        print(f"Using Gemini model for composition: {gemini_model}")
+
         response = client.models.generate_content(
-            model="gemini-2.5-flash-image-preview",
+            model=gemini_model,
             contents={"parts": parts},
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE", "TEXT"]

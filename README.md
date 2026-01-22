@@ -4,13 +4,13 @@ A containerized web application that uses Google Gemini 2.5 Flash Image API to g
 
 ## 🚀 Features
 
-- **Image Generation**: Create images from text prompts using Google Gemini 2.5 Flash
+- **Image Generation**: Create images from text prompts using Google Gemini 2.5 Flash, Gemini 3 Pro, or Imagen 4.0
 - **Image Editing**: Edit existing images with AI-powered modifications
 - **Image Composition**: Combine multiple images into new compositions
 - **Reuse Workflow**: Generated and composed images can be reused for further editing
 - **Modern UI**: Built with React, ShadCN UI components, and Tailwind CSS
 - **Docker Ready**: Fully containerized for easy deployment
-- **Model Switching**: This fork features the ability to choose between gemini-2.5-flash-image-preview (nano banana) which creates all images as 1:1 (square) aspect ratio, and the full-featured Imagen model which has a dropdown menu for selecting your required aspect ratio for the generated image.
+- **Model Switching**: Choose between Gemini 2.5 Flash Image (fast, square images), Gemini 3 Pro Image (high quality, full aspect ratio support), and Imagen 4.0.
 
 ## 🔧 Setup & Installation
 
@@ -98,10 +98,11 @@ This project is developed following enterprise security standards and is intende
 GemFlash now supports switching between AI models for image generation:
 
 - Use the Model dropdown in the header to choose between:
-  - Gemini 2.5 Flash Image – fast, conversational generation (produces square images)
-  - Imagen 4.0 – high-quality generation with precise aspect ratio control
-- When Imagen is selected, an Aspect Ratio dropdown appears with common ratios (1:1, 16:9, 9:16, 4:3, 3:4). Generated images respect the selected ratio.
-- When Gemini is selected, aspect ratio controls are hidden since Gemini generates square images.
+  - **Gemini 2.5 Flash Image**: Fast, conversational generation (defaults to 1:1 square).
+  - **Gemini 3 Pro Image (Preview)**: Highest quality reasoning and generation. Supports all aspect ratios.
+  - **Imagen 4.0**: Specialized high-quality generation.
+- **Aspect Ratio Control**: Available for Gemini 3 Pro and Imagen 4.0. Select from common ratios (1:1, 16:9, 9:16, 4:3, 3:4).
+- **Square Default**: Gemini 2.5 Flash Image generates square images by default.
 - Image Editing and Image Composition flows continue to use Gemini for multimodal capabilities, regardless of the selected model.
 - Generated images display a badge indicating which model created them.
 
