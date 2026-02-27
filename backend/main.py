@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -28,17 +28,28 @@ if not api_key:
 
 client = genai.Client(api_key=api_key)
 
+MAX_FILE_SIZE = 20 * 1024 * 1024  # 20MB
+
+def validate_image_content(content: bytes):
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail=f"File too large. Maximum size is {MAX_FILE_SIZE / (1024*1024):.0f}MB")
+    try:
+        img = Image.open(io.BytesIO(content))
+        img.verify()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid image file format")
+
 # Models
 class ImageGenerationRequest(BaseModel):
     prompt: str
     aspect_ratio: str = "1:1"
-    model: str = "gemini-2.5-flash-image"  # "gemini-2.5-flash-image", "gemini-3-pro-image-preview", or "imagen"
+    model: str = "gemini-2.5-flash-image"  # "gemini-2.5-flash-image", "gemini-3.1-flash-image-preview", "gemini-3-pro-image-preview", or "imagen"
 
 class ImageEditRequest(BaseModel):
     prompt: str
     image_urls: List[str] = []
     aspect_ratio: str = "1:1"
-    model: str = "gemini-2.5-flash-image"  # "gemini-2.5-flash-image", "gemini-3-pro-image-preview", or "imagen"
+    model: str = "gemini-2.5-flash-image"  # "gemini-2.5-flash-image", "gemini-3.1-flash-image-preview", "gemini-3-pro-image-preview", or "imagen"
 
 # Utility function to process image data from Gemini
 def process_gemini_image_response(response):
@@ -314,6 +325,7 @@ Output: Return ONLY the final edited image. Do not return text."""
                 import requests
                 resp = requests.get(image_urls, timeout=20)
                 resp.raise_for_status()
+                validate_image_content(resp.content)
                 content_type = resp.headers.get("content-type", "image/jpeg").split(";")[0] or "image/jpeg"
                 image_part = types.Part.from_bytes(data=resp.content, mime_type=content_type)
                 print("Successfully prepared image part from URL")
@@ -323,6 +335,7 @@ Output: Return ONLY the final edited image. Do not return text."""
 
         if image_file and image_file.filename:
             content = await image_file.read()
+            validate_image_content(content)
             mime_type = image_file.content_type or "image/png"
 
             # If the file is large, downscale/compress to improve acceptance and latency
@@ -422,12 +435,14 @@ Output: Return ONLY the final edited image. Do not return text."""
 async def compose_images(
     prompt: str = Form(...),
     model: str = Form(default="gemini"),
+    aspect_ratio: str = Form(default="1:1"),
     image_files: List[UploadFile] = File(default=[])
 ):
     try:
         print(f"Compose images request received:")
         print(f"  Prompt: {prompt}")
         print(f"  Model: {model}")
+        print(f"  Aspect Ratio: {aspect_ratio}")
         print(f"  Image files: {len(image_files)}")
         
         # Note: Image composition with Imagen API is more complex and may not support the same
@@ -443,6 +458,7 @@ async def compose_images(
         for image_file in image_files:
             if image_file.filename:
                 content = await image_file.read()
+                validate_image_content(content)
                 image_data = base64.b64encode(content).decode('utf-8')
                 parts.append({
                     "inlineData": {
@@ -450,6 +466,19 @@ async def compose_images(
                         "data": image_data
                     }
                 })
+        
+        # Build aspect ratio instruction
+        aspect_ratio_instruction = ""
+        if aspect_ratio == "16:9":
+            aspect_ratio_instruction = " Create the composition in a wide, landscape format (16:9 aspect ratio)."
+        elif aspect_ratio == "9:16":
+            aspect_ratio_instruction = " Create the composition in a tall, portrait format (9:16 aspect ratio)."
+        elif aspect_ratio == "4:3":
+            aspect_ratio_instruction = " Create the composition in a standard 4:3 aspect ratio format."
+        elif aspect_ratio == "3:4":
+            aspect_ratio_instruction = " Create the composition in a portrait 3:4 aspect ratio format."
+        else:
+            aspect_ratio_instruction = " Create the composition in a square format (1:1 aspect ratio)."
         
         # Create detailed prompt for composition
         detailed_prompt = f"""You are an expert photo editor AI. Your task is to compose the provided images into a single cohesive image based on the user's request.
@@ -459,7 +488,7 @@ User Request: "{prompt}"
 Composition Guidelines:
 - Combine the provided images in a natural, realistic way
 - Maintain consistent lighting and style across the composition
-- Create a seamless blend that looks professional and natural
+- Create a seamless blend that looks professional and natural{aspect_ratio_instruction}
 
 Output: Return ONLY the final composed image. Do not return text."""
 
@@ -499,11 +528,20 @@ Output: Return ONLY the final composed image. Do not return text."""
                 "image": image_data
             }
         else:
+            safety = _extract_gemini_safety_info(response)
+            blocked = (safety.get('finish_reason') in ['SAFETY', 'BLOCKED', 'FILTERED']) or any(r.get('blocked') for r in safety.get('safety_ratings', []))
+            if blocked:
+                return {
+                    "error": "Request blocked by model safety filters",
+                    "reason": safety.get('finish_reason') or "SAFETY_FILTERED",
+                    "safety_ratings": safety.get('safety_ratings', []),
+                    "tip": "Rephrase to avoid sensitive topics. Example: 'Combine these two images cleanly. Ensure the subjects are fully clothed and the scene is neutral.'"
+                }
             return {
                 "message": "Image composition completed, but no image data found",
                 "prompt": prompt,
                 "model": model,
-                "response": "No image data available"
+                "text_response": getattr(response, 'text', None) if hasattr(response, 'text') else None
             }
     except Exception as e:
         print(f"Exception in compose_images: {str(e)}")
